@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -83,14 +85,40 @@ public class ExcelFileExporterDao {
 		}
 	}
 
-	public static ByteArrayInputStream JsonResponseToExcelFile(ResponseEntity<String> params, String sheetN,String fileN) throws ParseException {
+	public static ByteArrayInputStream JsonResponseToExcelFile(ResponseEntity<String> params, String sheetN, String fileN, JSONObject objEncabezado) throws ParseException {
 		try(Workbook workbook = new XSSFWorkbook()){
 			Sheet sheet = workbook.createSheet(sheetN);
 			String body = params.getBody().replaceAll("\n", "").replaceAll("\t", "");
 			JSONParser parser = new JSONParser();
 			JSONArray json = null;
 			int cont = 0;
+			int contAux = 0;
+			int contAux2 = 0;
 			
+			if(objEncabezado != null){
+				Iterator<?> keys = objEncabezado.keySet().iterator();
+				ObjectMapper oMapper = new ObjectMapper();
+				Row encabezado = null;
+				Map<String, Object> map = oMapper.convertValue(objEncabezado, Map.class);
+
+				for (String key : map.keySet()) {
+					//System.out.println(key + " : " + map.get(key).toString());
+					Font font = workbook.createFont();
+					font.setBold(true);
+	   
+					CellStyle headerCellStyle = workbook.createCellStyle();
+					headerCellStyle.setFillForegroundColor(IndexedColors.AQUA.getIndex());
+					headerCellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+					headerCellStyle.setFont(font);
+
+					encabezado = sheet.createRow(contAux);
+					encabezado.createCell(0).setCellValue(key + " : " + map.get(key).toString());
+					encabezado.getCell(0).setCellStyle(headerCellStyle);
+
+					contAux++;
+				}
+			}
+
 			try{
 				json = (JSONArray) parser.parse(body);
 			}catch(Exception e){
@@ -103,24 +131,34 @@ public class ExcelFileExporterDao {
 				obj = (JSONObject) json.get(0);
 			}
 
-			Row row = sheet.createRow(0);
+			Row row = sheet.createRow(contAux + 1);
+			Font font = workbook.createFont();
+			font.setBold(true);
 	        CellStyle headerCellStyle = workbook.createCellStyle();
 	        headerCellStyle.setFillForegroundColor(IndexedColors.AQUA.getIndex());
 			headerCellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+			headerCellStyle.setAlignment(HorizontalAlignment.CENTER);
+			headerCellStyle.setFont(font);
 			
 			Iterator<?> keys = obj.keySet().iterator();
 			while(keys.hasNext()) {
 				Cell cell = row.createCell(cont);
-				cell.setCellValue(keys.next().toString());
+				cell.setCellValue(keys.next().toString().toUpperCase());
 				cell.setCellStyle(headerCellStyle);
 				cont++;
 			}
 
 				for(int j=0; j<json.size(); j++){
-					Row dataRow = sheet.createRow(j + 1);
+					Row dataRow = sheet.createRow(contAux + j + 2);
 					ArrayList<Object> list = handleList(json, j);
 					for (int i=0; i<cont; i++){
-						dataRow.createCell(i).setCellValue(list.get(i).toString());
+						try {
+							int val = Integer.parseInt(list.get(i).toString());
+							dataRow.createCell(i).setCellValue(val);
+						} catch (NumberFormatException nfe) {
+							dataRow.createCell(i).setCellValue(list.get(i).toString());
+						}
+						// dataRow.createCell(i).setCellValue(list.get(i).toString());
 					}
 				}
 

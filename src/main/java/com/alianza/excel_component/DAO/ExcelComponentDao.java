@@ -13,6 +13,8 @@ import com.alianza.excel_component.DTO.ExcelResponseDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.compress.utils.IOUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -29,6 +31,7 @@ public class ExcelComponentDao {
     Map<String, Object> map = new HashMap<>();
     ResponseEntity<String> response;
     HttpServletResponse responseFileInDao;
+    JSONObject objEncabezado = null;
 
     public ExcelResponseDto getExcel(HttpServletRequest request, Map<String, String> headers, HttpServletResponse responseFile)
             throws IOException, ParseException {
@@ -54,7 +57,7 @@ public class ExcelComponentDao {
                     response = restTemplate.getForEntity(urlResource, String.class, entity);
                     //String body = response.getBody();
                     //System.out.println("body -> " + body);
-                    downloadCsv(responseFile, response, sheetName, fileName);
+                    downloadCsv(responseFile, response, sheetName, fileName, objEncabezado);
                     objResponseDto.setStatus("success");
                     objResponseDto.setDetails("Recurso: " + methodResource + " consumido correctamene, se genera excel: " + fileName);
                 } catch (Exception e) {
@@ -68,7 +71,7 @@ public class ExcelComponentDao {
                     response = restTemplate.postForEntity(urlResource, entity, String.class);
                     // String body = response.getBody();
                     // System.out.println("body -> " + body);
-                    downloadCsv(responseFile, response, sheetName, fileName);
+                    downloadCsv(responseFile, response, sheetName, fileName, objEncabezado);
                     objResponseDto.setStatus("success");
                     objResponseDto.setDetails("Recurso: " + methodResource + " consumido correctamene, se genera excel: " + fileName);
                 } catch (Exception e) {
@@ -109,9 +112,21 @@ public class ExcelComponentDao {
     public Map<String, Object> handleBody(String request) throws IOException, ParseException {
         Map<String, Object> obj = new HashMap<>();
         ObjectMapper mapper = new ObjectMapper();
+        JSONParser parser = new JSONParser();
+        JSONObject objJson = null;
+        String jsonAux = null;
 
         try{
-            obj = mapper.readValue(request, Map.class);
+            objJson = (JSONObject) parser.parse(request);
+            objEncabezado = (JSONObject) objJson.get("encabezado");
+            objJson.remove("encabezado");
+            jsonAux = (String) objJson.toJSONString();
+        }catch(Exception e){
+            System.out.print("nodo encabezado no encontrado, excepcion -> " + e);
+        }
+
+        try{
+            obj = mapper.readValue(jsonAux, Map.class);
         }catch(Exception e){
             System.out.println(e);
         }
@@ -119,10 +134,10 @@ public class ExcelComponentDao {
         return obj;
     }
 
-    public void downloadCsv(HttpServletResponse response, ResponseEntity<String> responseRecurso, String sheetN, String fileN) throws IOException, ParseException {
+    public void downloadCsv(HttpServletResponse response, ResponseEntity<String> responseRecurso, String sheetN, String fileN, JSONObject objEncabezado) throws IOException, ParseException {
         response.setContentType("application/octet-stream");
         response.setHeader("Content-Disposition", "attachment; filename=" + fileN + ".xlsx");
-        ByteArrayInputStream stream = ExcelFileExporterDao.JsonResponseToExcelFile(responseRecurso, sheetN, fileN);
+        ByteArrayInputStream stream = ExcelFileExporterDao.JsonResponseToExcelFile(responseRecurso, sheetN, fileN, objEncabezado);
         IOUtils.copy(stream, response.getOutputStream());
     }
 }
